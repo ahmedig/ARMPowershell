@@ -1,0 +1,178 @@
+function PromptCustom($title, $optionValues, $optionDescriptions) {
+	Write-Host $title
+	Write-Host
+	$a = @()
+	for($i = 0; $i -lt $optionValues.Length; $i++)
+	{         
+		Write-Host "$($i+1))" $optionDescriptions[$i]
+	}
+	Write-Host
+	while($true)
+	{
+		Write-Host "Choose an option: "
+		$option = Read-Host
+		$option = $option -as [int]         
+		if($option -ge 1 -and $option -le $optionValues.Length)
+		{
+			return $optionValues[$option-1]
+		}
+	} } 
+	
+function PromptYesNo($title, $message, $default = 0)
+{
+	$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", ""
+	$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", ""
+	$options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+	$result = $host.ui.PromptForChoice($title, $message, $options, $default)     
+	return $result
+} 
+
+function EnterPassWord()
+{
+	Do
+	{
+		$password= Read-host -assecurestring  "Enter a complex Password:"
+	
+		$regex = "[^a-zA-Z0-9]" #check for special characters
+		$validity = ""
+		If ($password –cmatch $regex) {
+		  $validity= "true"
+		  write-host "Special Character YES"  
+		}
+		Else
+		{
+		 $validity = "false"
+		  write-host "Please include Special Character/s in your password"  
+		}
+
+
+		$regex1 = "[a-z]"
+		If ($password –cmatch $regex1) {
+		  $validity= $validity + "true"
+		  write-host "Lower Case YES"
+		}
+		Else
+		{
+		$validity= $validity +  "false"
+		  write-host "Please include lower Character/s in your password"
+		}
+
+
+		$regex2 = "[A-Z]"
+		If ($password –cmatch $regex2) {
+		  $validity=  $validity + "true"
+		  write-host "Upper Case YES"
+		}
+		Else
+		{
+		$validity= $validity + "false"
+		  write-host "Please include upper Character/s in your password"
+		}
+
+
+		$regex3 = "[0-9]"
+		If ($password –cmatch $regex3) {
+		   $validity= $validity + "true"
+		  write-host "Number in String YES"
+		}
+		Else
+		{
+		$validity= $validity + "false"
+		  write-host "Please include number/s in your password"
+		}
+
+
+		$count = $password.Length
+
+		if ($count -le 8) {
+		 $validity= $validity + "false"
+		write-host "Password should at least be 9 characters or more"
+		}
+		else
+		{
+		write-host "More than 8 characters YES"
+		$validity= $validity +  "true"
+		}
+
+		#just to display the number of characters
+		#write-host "$password has $count Characters"
+
+		#check if validity contains false
+		$check_validity = $validity.Contains("false")
+	 
+
+		if ($check_validity -eq "True")
+		{
+
+			write-host "Password does not meet complexity, FAIL"
+		}
+		else
+		{
+			Write-host "Password is GOOD"
+		}
+	
+	} While ($check_validity -eq "True")
+}
+
+
+# Obviously, replace the following with your own values
+$subscriptionId = ""
+$tenantId = ""
+$password = ""
+ 
+# Login to your Azure Subscription
+Login-AzureRMAccount
+# Choose subscription. If there's only one we will choose automatically
+$subs = Get-AzureRmSubscription
+$subscriptionId = "" 
+if($subs.Length -eq 0)
+{
+	Write-Error "No subscriptions bound to this account."
+	return
+} 
+if($subs.Length -eq 1)
+{
+	$subscriptionId = $subs[0].SubscriptionId
+} 
+else
+{
+	$subscriptionChoices = @()
+	$subscriptionValues = @()
+   
+	foreach($subscription in $subs)
+	{
+		$subscriptionChoices += "$($subscription.SubscriptionName)($($subscription.SubscriptionId))";
+		$subscriptionValues += ($subscription.SubscriptionId);
+	}
+	$subscriptionId = PromptCustom "Choose a subscription" $subscriptionValues $subscriptionChoices
+}
+
+$selectedSub = Get-AzureRmSubscription -SubscriptionId $subscriptionId
+$tenantId = $selectedSub.TenantId
+
+
+Set-AzureRMContext -SubscriptionId $subscriptionId -TenantId $tenantId
+
+EnterPassWord
+ 
+# Create an Octopus Deploy application in Active Directory
+Write-Output "Creating AAD application..."
+$azureAdApplication = New-AzureRmADApplication -DisplayName "MyStory Octopus Deploy" -HomePage "http://octopus.mystorydev.com" -IdentifierUris "http://octopus.mystorydev.com" -Password $password
+$azureAdApplication | Format-Table
+ 
+# Create the Service Principal
+Write-Output "Creating AAD service principal..."
+$servicePrincipal = New-AzureRmADServicePrincipal -ApplicationId $azureAdApplication.ApplicationId
+$servicePrincipal | Format-Table
+ 
+# Sleep, to ensure the Service Principal is actually created
+Write-Output "Sleeping for 30s to give the service principal a chance to finish creating..."
+Start-Sleep -s 30
+  
+# Assign the Service Principal the Contributor role to the subscription.
+# Roles can be granted at the Resource Group level if desired.
+Write-Output "Assigning the Contributor role to the service principal..."
+New-AzureRmRoleAssignment -RoleDefinitionName Contributor -ServicePrincipalName $azureAdApplication.ApplicationId
+ 
+# The Application ID (aka Client ID) will be required when creating the Account in Octopus Deploy
+Write-Output "Client ID: $($azureAdApplication.ApplicationId)"
