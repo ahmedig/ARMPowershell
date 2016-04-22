@@ -35,15 +35,19 @@ function EnterPassWord()
 		$password= Read-host -assecurestring  "Enter a complex Password"
 		$password2 = Read-host -assecurestring  "Re-enter the Password"
 
-		if($password -ne $password2)
-		{
+        $pwd1_text = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password))
+        $pwd2_text = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password2))
+ 
+        if ($pwd1_text -ceq $pwd2_text) 
+        {
+            $validity = $true
+        } 
+        else 
+        {
+            Write-Host "Passwords do not match! Please try again"
 			$validity = $false
-		}
-		else
-		{
-			$validity = $true
-		}
-	
+        }
+
 		#$regex = "[^a-zA-Z0-9]" #check for special characters
 		#$validity = ""
 		#If ($password –cmatch $regex) {
